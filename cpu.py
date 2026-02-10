@@ -37,7 +37,7 @@ class CPU:
     # --- MÉTODOS DE SOPORTE ---
 
     def load_program(self, program, offset=0):
-        self.ram = bytearray(256)
+        self.memory = Memory()
         self.A = 0x00
         self.PC = offset
         self.carry = False
@@ -45,7 +45,7 @@ class CPU:
         self.log = []
         self.running = True
         for i, byte in enumerate(program):
-            if offset + i < 256: self.ram[offset + i] = byte
+            if offset + i < 256: self.bus.read(offset + i) = byte
 
     def add_log(self, message):
         self.log.append(message)
@@ -55,7 +55,7 @@ class CPU:
 
     # 0x01
     def _lda(self):
-        val = self.ram[self.PC + 1]
+        val = self.bus.read(self.PC + 1)
         self.add_log(f"FETCH: 01 {val:02X} -> LDA #{val:03d}")
         self.A = val
         self.zero = (self.A == 0)
@@ -63,7 +63,7 @@ class CPU:
 
     # 0x02
     def _add(self):
-        val = self.ram[self.PC + 1]
+        val = self.bus.read(self.PC + 1)
         old_a = self.A
         res = self.A + val
         self.add_log(f"FETCH: 02 {val:02X} -> ADD #{val:03d}")
@@ -77,21 +77,21 @@ class CPU:
 
     # 0x03
     def _sta(self):
-        addr = self.ram[self.PC + 1]
+        addr = self.bus.read(self.PC + 1)
         self.add_log(f"FETCH: 03 {addr:02X} -> STA ${addr:02X}")
-        self.ram[addr] = self.A
+        self.bus.write(addr, self.A)
         self.add_log(f"MEM: {self.A:02X} guardado en ${addr:02X}")
         self.PC += 2
 
     # 0x04
     def _jmp(self):
-        addr = self.ram[self.PC + 1]
+        addr = self.bus.read(self.PC + 1)
         self.add_log(f"FETCH: 04 {addr:02X} -> JMP ${addr:02X}")
         self.PC = addr
 
     # 0x05
     def _sub(self):
-        val = self.ram[self.PC + 1]
+        val = self.bus.read(self.PC + 1)
         old_a = self.A
         res = self.A - val
         self.add_log(f"FETCH: 05 {val:02X} -> SUB #{val:03d}")
@@ -103,7 +103,7 @@ class CPU:
 
     # 0x06
     def _beq(self):
-        addr = self.ram[self.PC + 1]
+        addr = self.bus.read(self.PC + 1)
         self.add_log(f"FETCH: 06 {addr:02X} -> BEQ ${addr:02X}")
         if self.zero:
             self.add_log(f"BRANCH: Z=ON. Saltando a {addr:02X}...")
@@ -114,7 +114,7 @@ class CPU:
 
     # 0x07 - AND
     def _and(self):
-        val = self.ram[self.PC + 1]
+        val = self.bus.read(self.PC + 1)
         old_a = self.A
         self.add_log(f"FETCH: 07 {val:02X} -> AND #{val:03d}")
         self.A &= val
@@ -125,7 +125,7 @@ class CPU:
 
     # 0x08 - OR
     def _or(self):
-        val = self.ram[self.PC + 1]
+        val = self.bus.read(self.PC + 1)
         old_a = self.A
         self.add_log(f"FETCH: 08 {val:02X} -> OR #{val:03d}")
         self.A |= val
@@ -136,7 +136,7 @@ class CPU:
 
     # 0x09 - XOR
     def _xor(self):
-        val = self.ram[self.PC + 1]
+        val = self.bus.read(self.PC + 1)
         old_a = self.A
         self.add_log(f"FETCH: 09 {val:02X} -> XOR #{val:03d}")
         self.A ^= val
@@ -157,7 +157,7 @@ class CPU:
 
     # 0x0B: LDX #val
     def _ldx(self):
-        val = self.ram[self.PC + 1]
+        val = self.bus.read(self.PC + 1)
         self.add_log(f"FETCH: 0B {val:02X} -> LDX #{val:03d}")
         self.X = val
         self.zero = (self.X == 0)
@@ -190,7 +190,8 @@ class CPU:
 
     def step(self):
         if not self.running or self.PC >= 256: return
-        opcode = self.ram[self.PC]
+        opcode = self.bus.read(self.PC)
+        
         
         # El Dispatcher busca la función
         instr_func = self.instructions.get(opcode)
@@ -217,7 +218,7 @@ class CPU:
             line = f"{i*16:02X}: "
             for j in range(16):
                 idx = i*16 + j
-                v = self.ram[idx]
+                v = self.bus.read(idx)
                 if idx == self.PC: line += f"\033[42m\033[30m{v:02X}\033[0m "
                 elif v != 0: line += f"\033[36m{v:02X}\033[0m "
                 else: line += f"\033[90m{v:02X}\033[0m "
