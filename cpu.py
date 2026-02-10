@@ -9,6 +9,7 @@ class CPU:
         self.bus = Bus()
         self.bus.attach_memory(self.memory)
         self.micro_ops = []
+        self.IR = 0 # Instruction Register
         self.operand = 0
         self.A = 0x00
         self.X = 0x00
@@ -196,16 +197,13 @@ class CPU:
         
         if self.micro_ops:
             micro = self.micro_ops.pop(0)
-            micro()
         else:
-            opcode = self.bus.read(self.PC)
-            self.PC += 1
-
+            opcode = self.IR
             instr = self.instructions.get(opcode)
             if instr:
                 instr()
             else:
-                self.add_log("")
+                self.add_log(f"SKIP: Opcode {opcode:02X}")
 
          
 
