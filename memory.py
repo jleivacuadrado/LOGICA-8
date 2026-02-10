@@ -16,6 +16,6 @@ class Memory:
             raise TypeError(f"Dirección no entera: {addr}")
         if addr < 0 or addr >= self.size:
             raise ValueError(f"Dirección fuera de rango: {addr}")
-        if isinstance(value, int):
+        if not isinstance(value, int):
             raise TypeError(f"Valor no entero: {value}")
         self.data[addr] = value & 0xFF

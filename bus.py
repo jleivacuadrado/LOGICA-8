@@ -10,4 +10,4 @@ class Bus:
         return self.memory.read(addr)
 
     def write(self, addr, value):
-        self.memory.write(addr, value)
+        self.memory.write(addr, int(value) & 0xFF)

@@ -49,7 +49,7 @@ class CPU:
         self.log = []
         self.running = True
         for i, byte in enumerate(program):
-            if offset + i < 256: self.bus.write(offset + i, byte)
+            if offset + i < 256: self.bus.write(offset + i, int(byte) & 0xFF)
 
     def add_log(self, message):
         self.log.append(message)
@@ -82,7 +82,7 @@ class CPU:
     def _sta(self):
         addr = self.bus.read(self.PC + 1)
         self.add_log(f"FETCH: 03 {addr:02X} -> STA ${addr:02X}")
-        self.bus.write(addr, self.A)
+        self.bus.write(addr, int(self.A) & 0xFF)
         self.add_log(f"MEM: {self.A:02X} guardado en ${addr:02X}")
         self.PC += 2
 
