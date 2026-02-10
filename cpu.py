@@ -38,6 +38,7 @@ class CPU:
 
     def load_program(self, program, offset=0):
         self.memory = Memory()
+        self.bus.attach_memory(self.memory)
         self.A = 0x00
         self.PC = offset
         self.carry = False
@@ -45,7 +46,7 @@ class CPU:
         self.log = []
         self.running = True
         for i, byte in enumerate(program):
-            if offset + i < 256: self.bus.read(offset + i) = byte
+            if offset + i < 256: self.bus.write(offset + i, byte)
 
     def add_log(self, message):
         self.log.append(message)
