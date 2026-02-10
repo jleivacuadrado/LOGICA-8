@@ -47,7 +47,7 @@ def run_emulator(cpu):
 
 
 def main():
-    cpu = Logica8()
+    cpu = CPU()
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print("      █▒▒▒▒▒▒▒▒▒ LOGICA-8: CONTROL PANEL ▒▒▒▒▒▒▒▒▒█")

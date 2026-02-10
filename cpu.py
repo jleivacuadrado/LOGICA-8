@@ -1,13 +1,15 @@
 
 from memory import Memory
 from bus import Bus
+from microops import fetch_operand, load_A
 
 class CPU:
     def __init__(self):
         self.memory = Memory()
         self.bus = Bus()
         self.bus.attach_memory(self.memory)
-        
+        self.micro_ops = []
+        self.operand = 0
         self.A = 0x00
         self.X = 0x00
         self.PC = 0
@@ -56,11 +58,10 @@ class CPU:
 
     # 0x01
     def _lda(self):
-        val = self.bus.read(self.PC + 1)
-        self.add_log(f"FETCH: 01 {val:02X} -> LDA #{val:03d}")
-        self.A = val
-        self.zero = (self.A == 0)
-        self.PC += 2
+        self.micro_ops = [
+            lambda: fetch_operand(self),
+            lambda: load_A(self)
+        ]
 
     # 0x02
     def _add(self):
@@ -190,18 +191,37 @@ class CPU:
     # --- CICLO DE EJECUCIÓN Y RENDER ---
 
     def step(self):
-        if not self.running or self.PC >= 256: return
-        opcode = self.bus.read(self.PC)
+        if not self.running:
+            return
         
-        
-        # El Dispatcher busca la función
-        instr_func = self.instructions.get(opcode)
-        
-        if instr_func:
-            instr_func()
+        if self.micro_ops:
+            micro = self.micro_ops.pop(0)
+            micro()
         else:
-            self.add_log(f"SKIP: OpCode {opcode:02X} desconocido")
+            opcode = self.bus.read(self.PC)
             self.PC += 1
+
+            instr = self.instructions.get(opcode)
+            if instr:
+                instr()
+            else:
+                self.add_log("")
+
+         
+
+    #def step(self):
+    #    if not self.running or self.PC >= 256: return
+    #    opcode = self.bus.read(self.PC)
+    #    
+    #    
+    #    # El Dispatcher busca la función
+    #    instr_func = self.instructions.get(opcode)
+    #    
+    #    if instr_func:
+    #        instr_func()
+    #    else:
+    #        self.add_log(f"SKIP: OpCode {opcode:02X} desconocido")
+    #        self.PC += 1
 
     def render(self):
         os.system('cls' if os.name == 'nt' else 'clear')

@@ -4,7 +4,7 @@ from assembler import *
 
 def run_tests():
     print("\n[ INICIANDO TEST DE SISTEMA LOGICA-8 ]\n")
-    cpu = Logica8()
+    cpu = CPU()
     tests_passed = 0
     total_tests = 0
 
