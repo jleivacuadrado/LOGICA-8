@@ -192,6 +192,7 @@ class CPU:
     # --- CICLO DE EJECUCIÓN Y RENDER ---
 
     def step(self):
+        print(f"STEP: PC={self.PC:02X}, running={self.running}, micro_ops={len(self.micro_ops)}")
         if not self.running:
             return
         
@@ -205,21 +206,6 @@ class CPU:
             else:
                 self.add_log(f"SKIP: Opcode {opcode:02X}")
 
-         
-
-    #def step(self):
-    #    if not self.running or self.PC >= 256: return
-    #    opcode = self.bus.read(self.PC)
-    #    
-    #    
-    #    # El Dispatcher busca la función
-    #    instr_func = self.instructions.get(opcode)
-    #    
-    #    if instr_func:
-    #        instr_func()
-    #    else:
-    #        self.add_log(f"SKIP: OpCode {opcode:02X} desconocido")
-    #        self.PC += 1
 
     def render(self):
         os.system('cls' if os.name == 'nt' else 'clear')
