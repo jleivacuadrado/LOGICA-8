@@ -41,6 +41,12 @@ class CPU:
         }
 
     # --- MÉTODOS DE SOPORTE ---
+
+    def fetch_byte(self):
+        byte = self.bus.read(self.PC)
+        self.PC += 1
+        return byte
+
     def load_program(self, program, offset=0):
         self.memory = Memory()
         self.bus.attach_memory(self.memory)
@@ -70,11 +76,10 @@ class CPU:
     def _lda(self):
         if self.PC + 1 >= 256:
             raise IndexError("LDA: fetch de operando fuera de memoria")
-        val = self.bus.read(self.PC + 1)
+        val = self.fetch_byte()
         self.A = val
         self.zero = (self.A == 0)
-        self.add_log(f"LDA #{val:03d}")
-        self.PC += 2  # OPCODE + OPERANDO
+        self.add_log(f"LDA #{val:02X}")
 
     # 0x02
     def _add(self):
@@ -223,6 +228,7 @@ class CPU:
 
 
     # --- CICLO DE EJECUCIÓN ---
+    
     def step(self):
         if not self.running:
             return
