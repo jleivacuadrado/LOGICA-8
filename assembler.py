@@ -32,44 +32,79 @@ SINGLE_BYTE_INSTR = ["INX", "DEX", "NOT", "HALT"]
 
 
 def assembler():
-    print("\n--- LOGICA-8 - ENSAMBLADOR ---")
-    print("Escribe una instrucción por línea (ej: LDA 0x05).")
-    print("Escribe 'FIN' para terminar y cargar.")
-    print("-" * 35)
+    print("\n--- LOGICA-8 - ASSEMBLER ---")
+    print("Intruduce instrucciones, 'ETIQUETA:' definir saltos o 'FIN' para compilar.")
+    print("-" * 40)
     
-    codigo_usuario = []
-    bytecode_final = []
-    direccion_actual = 0
-    
+    lineas_brutas = []
     while True:
-        linea = input(f"${direccion_actual:02X} > ").upper().strip()
-        if linea == "FIN": break
+        linea = input("> ").strip()
+        if linea.upper() == "FIN": break
         if not linea: continue
+        lineas_brutas.append(linea)
+    
+    labels = {}
+    direccion_actual = 0
+    instrucciones_limpias = []
+
+    # --- PASADA 1: Mapeo de Etiquetas y Validación ---
+    for linea in lineas_brutas:
+        # Limpiar espacios y separar por tokens
+        tokens = linea.replace(':', ': ').split()
+        if not tokens: continue
         
-        partes = linea.split()
-        mnemonico = partes[0]
+        primer_token = tokens[0].upper()
         
-        if mnemonico in ASM_TO_HEX:
-            opcode = ASM_TO_HEX[mnemonico]
-            
-            # Caso A: Instrucciones simples (1 byte)
-            if mnemonico in SINGLE_BYTE_INSTR:
-                print(f"      [ TRADUCCIÓN: {opcode:02X} ]")
-                bytecode_final.append(opcode)
-                direccion_actual += 1
-            
-            # Caso B: Instrucciones con valor (2 bytes)
-            elif len(partes) > 1:
-                valor = parse_value(partes[1])
-                if valor is not None and 0 <= valor <= 255:
-                    print(f"      [ TRADUCCIÓN: {opcode:02X} {valor:02X} ]")
-                    bytecode_final.extend([opcode, valor])
-                    direccion_actual += 2
-                else:
-                    print("      [ ERROR: Valor no válido ]")
+        if primer_token.endswith(':'):
+            label_name = primer_token[:-1]
+            if label_name in labels:
+                print(f"ERROR: Etiqueta duplicada '{label_name}'")
+                return None
+            labels[label_name] = direccion_actual
+            # Si hay algo después de los ":" en la misma línea, es una instrucción
+            if len(tokens) > 1:
+                tokens = tokens[1:] 
             else:
-                print(f"      [ ERROR: {mnemonico} necesita un valor ]")
+                continue # Línea de solo etiqueta, no suma dirección
+        
+        # Calcular tamaño de la instrucción
+        mnemonico = tokens[0].upper()
+        if mnemonico in ASM_TO_HEX:
+            instrucciones_limpias.append((direccion_actual, tokens))
+            direccion_actual += 1 if mnemonico in SINGLE_BYTE_INSTR else 2
         else:
-            print(f"      [ ERROR: Instrucción desconocida ]")
+            print(f"ERROR: Instrucción desconocida '{mnemonico}'")
+            return None
+
+    # --- PASADA 2: Generación de Bytecode ---
+    bytecode = []
+    print(f"\n{'DIR':<5} | {'ASM':<15} | {'HEX'}")
+    print("-" * 35)
+
+    for addr, tokens in instrucciones_limpias:
+        mnemonico = tokens[0].upper()
+        opcode = ASM_TO_HEX[mnemonico]
+        
+        if mnemonico in SINGLE_BYTE_INSTR:
+            print(f"${addr:02X} | {mnemonico:<15} | {opcode:02X}")
+            bytecode.append(opcode)
+        else:
+            if len(tokens) < 2:
+                print(f"ERROR: '{mnemonico}' requiere un argumento.")
+                return None
             
-    return bytecode_final
+            arg = tokens[1].upper()
+            # ¿Es una etiqueta o un número literal?
+            if arg in labels:
+                valor = labels[arg]
+            else:
+                valor = parse_value(arg)
+            
+            if valor is not None and 0 <= valor <= 255:
+                print(f"${addr:02X} | {mnemonico} {arg:<11} | {opcode:02X} {valor:02X}")
+                bytecode.extend([opcode, valor])
+            else:
+                print(f"ERROR: Argumento o etiqueta inválida '{arg}'")
+                return None
+                
+    return bytecode

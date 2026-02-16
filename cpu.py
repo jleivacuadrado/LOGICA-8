@@ -49,8 +49,6 @@ class CPU:
         return byte
 
     def load_program(self, program, offset=0):
-        #self.memory = Memory()
-        #self.bus.attach_memory(self.memory)
         self.A = 0x00
         self.X = 0x00
         self.PC = offset
@@ -84,24 +82,12 @@ class CPU:
             old_a = self.A
             self.A = (self.A + self.operand) % 256
             self.carry = (old_a + self.operand) > 255
-            self.zero = (self.A == 0)
-            self.add_log(f"ADD: {old_a:02X}+{self.operand:02X}={self.A:02X}")
+            self.add_log(f"EXEC: ADD #{self.operand:02X} a A:{old_a:02X} -> RES:{self.A:02X}")
         self.micro_ops.append(lambda: fetch_operand(self))
         self.micro_ops.append(do_add)
+        self.micro_ops.append(lambda: update_flags(self, self.A))
 
 	# 0x03
-    def _sub(self):
-        def do_sub():
-            old_a = self.A
-            res = self.A - self.operand
-            self.A = res % 256
-            self.carry = res < 0
-            self.zero = (self.A == 0)
-            self.add_log(f"SUB: {old_a:02X}-{self.operand:02X}={self.A:02X}")
-        self.micro_ops.append(lambda: fetch_operand(self))
-        self.micro_ops.append(do_sub)
-
-	# 0x04
     def _sta(self):
         def do_sta():
             self.bus.write(self.operand, self.A)
@@ -109,22 +95,38 @@ class CPU:
         self.micro_ops.append(lambda: fetch_operand(self))
         self.micro_ops.append(do_sta)
 
-	# 0x05
+	# 0x04
     def _jmp(self):
         def do_jmp():
+            old_pc = self.PC
             self.PC = self.operand
-            self.add_log(f"JMP -> ${self.operand:02X}")
+            self.add_log(f"EXEC: JUMP     -> Forzando PC: ${old_pc:02X} a ${self.PC:02X}")
+        
         self.micro_ops.append(lambda: fetch_operand(self))
         self.micro_ops.append(do_jmp)
+
+    # 0x05
+    def _sub(self):
+        def do_sub():
+            old_a = self.A
+            res = self.A - self.operand
+            self.A = res % 256
+            self.carry = res < 0
+            self.add_log(f"EXEC: SUB      -> A:{old_a:02X} - #{self.operand:02X} = {self.A:02X}")
+        self.micro_ops.append(lambda: fetch_operand(self))
+        self.micro_ops.append(do_sub)
+        self.micro_ops.append(lambda: update_flags(self, self.A))
 
 	# 0x06
     def _beq(self):
         def do_beq():
             if self.zero:
+                old_pc = self.PC
                 self.PC = self.operand
-                self.add_log(f"BEQ Z=ON -> PC=${self.operand:02X}")
+                self.add_log(f"EXEC: BRANCH   -> Z es ON. Salto: ${old_pc:02X} a ${self.PC:02X}")
             else:
-                self.add_log(f"BEQ Z=OFF, no salto")
+                self.add_log(f"EXEC: BRANCH   -> Z es OFF. No hay salto.")
+        
         self.micro_ops.append(lambda: fetch_operand(self))
         self.micro_ops.append(do_beq)
 
@@ -153,10 +155,10 @@ class CPU:
         def do_xor():
             old_a = self.A
             self.A ^= self.operand
-            self.zero = (self.A == 0)
-            self.add_log(f"XOR: {old_a:02X} ^ {self.operand:02X} = {self.A:02X}")
+            self.add_log(f"EXEC: XOR      -> A:{old_a:02X} ^ #{self.operand:02X} = {self.A:02X}")
         self.micro_ops.append(lambda: fetch_operand(self))
         self.micro_ops.append(do_xor)
+        self.micro_ops.append(lambda: update_flags(self, self.A))
 
     # 0x0A
     def _not(self):
@@ -222,7 +224,8 @@ class CPU:
             return
         
         self.IR = self.fetch_byte()
-        print(f"FETCH: PC={self.PC:02X} ir={self.IR:02X}")
+        # Separador visual para identificar nuevas instrucciones
+        self.add_log(f"--- FETCH INSTR: OpCode {self.IR:02X} ---")
 
         # 3️ DECODIFICACIÓN
         instr = self.instructions.get(self.IR)
