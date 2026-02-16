@@ -1,6 +1,7 @@
 
 from memory import Memory
 from bus import Bus
+from microops import *
 import os
 
 class CPU:
@@ -48,8 +49,8 @@ class CPU:
         return byte
 
     def load_program(self, program, offset=0):
-        self.memory = Memory()
-        self.bus.attach_memory(self.memory)
+        #self.memory = Memory()
+        #self.bus.attach_memory(self.memory)
         self.A = 0x00
         self.X = 0x00
         self.PC = offset
@@ -76,10 +77,15 @@ class CPU:
     def _lda(self):
         if self.PC + 1 >= 256:
             raise IndexError("LDA: fetch de operando fuera de memoria")
-        val = self.fetch_byte()
-        self.A = val
-        self.zero = (self.A == 0)
-        self.add_log(f"LDA #{val:02X}")
+        # log
+        addr = self.PC # dirección del operando
+        val = self.bus.read(addr)
+        self.add_log(f"FETCH: 01 {val:02x} -> lda #{val:03d}")
+        # micro_ops
+        self.micro_ops = [
+            lambda: fetch_operand(self),
+            lambda: load_A(self)
+        ]
 
     # 0x02
     def _add(self):
@@ -230,28 +236,31 @@ class CPU:
     # --- CICLO DE EJECUCIÓN ---
     
     def step(self):
+        print(f"STEP: PC={self.PC:02X}, running={self.running}, micro_ops={len(self.micro_ops)}")
+
         if not self.running:
             return
 
-        # Ejecutar micro-op si hay
+        # 1 Si hay micro-ops pendientes, ejecutar una
         if self.micro_ops:
             micro = self.micro_ops.pop(0)
             micro()
             return
 
-        # Fetch opcode
+        # 2️ FETCH (opcode)
         if self.PC >= 256:
             self.running = False
             return
-        self.IR = self.bus.read(self.PC)
+        
+        self.IR = self.fetch_byte()
+        print(f"FETCH: PC={self.PC:02X} ir={self.IR:02X}")
 
-        # Dispatch
+        # 3️ DECODIFICACIÓN
         instr = self.instructions.get(self.IR)
         if instr:
             instr()
         else:
-            self.add_log(f"SKIP opcode {self.IR:02X}")
-            self.PC += 1
+            self.add_log(f"SKIP: Opcode {self.IR:02X}")
 
 
     def render(self):
