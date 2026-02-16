@@ -73,164 +73,133 @@ class CPU:
 
     # --- INSTRUCCIONES ---
 
-    # 0x01
+	# 0x01
     def _lda(self):
-        if self.PC + 1 >= 256:
-            raise IndexError("LDA: fetch de operando fuera de memoria")
-        # log
-        addr = self.PC # dirección del operando
-        val = self.bus.read(addr)
-        self.add_log(f"FETCH: 01 {val:02x} -> lda #{val:03d}")
-        # micro_ops
-        self.micro_ops = [
-            lambda: fetch_operand(self),
-            lambda: load_A(self)
-        ]
+        self.micro_ops.append(lambda: fetch_operand(self))
+        self.micro_ops.append(lambda: load_A(self))
 
-    # 0x02
+	# 0x02
     def _add(self):
-        if self.PC + 1 >= 256:
-            raise IndexError("ADD: fetch de operando fuera de memoria")
-        val = self.bus.read(self.PC + 1)
-        res = self.A + val
-        self.carry = res > 255
-        self.A = res % 256
-        self.zero = (self.A == 0)
-        self.add_log(f"ADD #{val:03d} -> A={self.A}")
-        self.PC += 2
+        def do_add():
+            old_a = self.A
+            self.A = (self.A + self.operand) % 256
+            self.carry = (old_a + self.operand) > 255
+            self.zero = (self.A == 0)
+            self.add_log(f"ADD: {old_a:02X}+{self.operand:02X}={self.A:02X}")
+        self.micro_ops.append(lambda: fetch_operand(self))
+        self.micro_ops.append(do_add)
 
-    # 0x03
-    def _sta(self):
-        if self.PC + 1 >= 256:
-            raise IndexError("STA: fetch de operando fuera de memoria")
-        addr = self.bus.read(self.PC + 1)
-        self.bus.write(addr, self.A)
-        self.add_log(f"STA ${addr:02X}")
-        self.PC += 2
-
-    # 0x04
-    def _jmp(self):
-        if self.PC + 1 >= 256:
-            raise IndexError("JMP: fetch de operando fuera de memoria")
-        addr = self.bus.read(self.PC + 1)
-        self.PC = addr
-
-        # 0x05
+	# 0x03
     def _sub(self):
-        if self.PC + 1 >= 256:
-            raise IndexError("ADD: fetch de operando fuera de memoria")
-        val = self.bus.read(self.PC + 1)
-        old_a = self.A
-        res = self.A - val
-        self.add_log(f"FETCH: 05 {val:02X} -> SUB #{val:03d}")
-        self.A = (256 + res) % 256 if res < 0 else res
-        self.carry = res < 0
-        self.zero = (self.A == 0)
-        self.add_log(f"  MATH: {old_a:02X}-{val:02X}={self.A:02X} ({old_a:03d}-{val:03d}={res:03d})")
-        self.PC += 2
+        def do_sub():
+            old_a = self.A
+            res = self.A - self.operand
+            self.A = res % 256
+            self.carry = res < 0
+            self.zero = (self.A == 0)
+            self.add_log(f"SUB: {old_a:02X}-{self.operand:02X}={self.A:02X}")
+        self.micro_ops.append(lambda: fetch_operand(self))
+        self.micro_ops.append(do_sub)
 
-    # 0x06
+	# 0x04
+    def _sta(self):
+        def do_sta():
+            self.bus.write(self.operand, self.A)
+            self.add_log(f"STA: {self.A:02X} -> ${self.operand:02X}")
+        self.micro_ops.append(lambda: fetch_operand(self))
+        self.micro_ops.append(do_sta)
+
+	# 0x05
+    def _jmp(self):
+        def do_jmp():
+            self.PC = self.operand
+            self.add_log(f"JMP -> ${self.operand:02X}")
+        self.micro_ops.append(lambda: fetch_operand(self))
+        self.micro_ops.append(do_jmp)
+
+	# 0x06
     def _beq(self):
-        if self.PC + 1 >= 256:
-            raise IndexError("ADD: fetch de operando fuera de memoria")
-        addr = self.bus.read(self.PC + 1)
-        self.add_log(f"FETCH: 06 {addr:02X} -> BEQ ${addr:02X}")
-        if self.zero:
-            self.add_log(f"BRANCH: Z=ON. Saltando a {addr:02X}...")
-            self.PC = addr
-        else:
-            self.add_log(f"BRANCH: Z=OFF. No hay salto.")
-            self.PC += 2
+        def do_beq():
+            if self.zero:
+                self.PC = self.operand
+                self.add_log(f"BEQ Z=ON -> PC=${self.operand:02X}")
+            else:
+                self.add_log(f"BEQ Z=OFF, no salto")
+        self.micro_ops.append(lambda: fetch_operand(self))
+        self.micro_ops.append(do_beq)
 
-    # 0x07 - AND
+	# 0x07
     def _and(self):
-        if self.PC + 1 >= 256:
-            raise IndexError("ADD: fetch de operando fuera de memoria")
-        val = self.bus.read(self.PC + 1)
-        old_a = self.A
-        self.add_log(f"FETCH: 07 {val:02X} -> AND #{val:03d}")
-        self.A &= val
-        self.zero = (self.A == 0)
-        self.add_log(f"  LOGIC: %{old_a:08b} & %{val:08b}")
-        self.add_log(f"    RES: %{self.A:08b} (Hex: {self.A:02X} | Dec: {self.A:03d})")
-        self.PC += 2
+        def do_and():
+            old_a = self.A
+            self.A &= self.operand
+            self.zero = (self.A == 0)
+            self.add_log(f"AND: {old_a:02X} & {self.operand:02X} = {self.A:02X}")
+        self.micro_ops.append(lambda: fetch_operand(self))
+        self.micro_ops.append(do_and)
 
-    # 0x08 - OR
+	# 0x08
     def _or(self):
-        if self.PC + 1 >= 256:
-            raise IndexError("ADD: fetch de operando fuera de memoria")
-        val = self.bus.read(self.PC + 1)
-        old_a = self.A
-        self.add_log(f"FETCH: 08 {val:02X} -> OR #{val:03d}")
-        self.A |= val
-        self.zero = (self.A == 0)
-        self.add_log(f"  LOGIC: %{old_a:08b} | %{val:08b}")
-        self.add_log(f"    RES: %{self.A:08b} (Hex: {self.A:02X} | Dec: {self.A:03d})")
-        self.PC += 2
+        def do_or():
+            old_a = self.A
+            self.A |= self.operand
+            self.zero = (self.A == 0)
+            self.add_log(f"OR: {old_a:02X} | {self.operand:02X} = {self.A:02X}")
+        self.micro_ops.append(lambda: fetch_operand(self))
+        self.micro_ops.append(do_or)
 
-    # 0x09 - XOR
+	# 0x09
     def _xor(self):
-        if self.PC + 1 >= 256:
-            raise IndexError("ADD: fetch de operando fuera de memoria")
-        val = self.bus.read(self.PC + 1)
-        old_a = self.A
-        self.add_log(f"FETCH: 09 {val:02X} -> XOR #{val:03d}")
-        self.A ^= val
-        self.zero = (self.A == 0)
-        self.add_log(f"  LOGIC: %{old_a:08b} ^ %{val:08b}")
-        self.add_log(f"    RES: %{self.A:08b} (Hex: {self.A:02X} | Dec: {self.A:03d})")
-        self.PC += 2
+        def do_xor():
+            old_a = self.A
+            self.A ^= self.operand
+            self.zero = (self.A == 0)
+            self.add_log(f"XOR: {old_a:02X} ^ {self.operand:02X} = {self.A:02X}")
+        self.micro_ops.append(lambda: fetch_operand(self))
+        self.micro_ops.append(do_xor)
 
-    # 0x0A - NOT
+    # 0x0A
     def _not(self):
-        if self.PC + 1 >= 256:
-            raise IndexError("ADD: fetch de operando fuera de memoria")
-        old_a = self.A
-        self.add_log(f"FETCH: 0A -> NOT")
-        self.A = (~self.A) & 0xFF
-        self.zero = (self.A == 0)
-        self.add_log(f"  LOGIC: ~ %{old_a:08b}")
-        self.add_log(f"    RES: %{self.A:08b} (Hex: {self.A:02X} | Dec: {self.A:03d})")
-        self.PC += 1
+        def do_not():
+            old_a = self.A
+            self.A = (~self.A) & 0xFF
+            self.zero = (self.A == 0)
+            self.add_log(f"NOT: ~{old_a:02X} = {self.A:02X}")
+        self.micro_ops.append(do_not)
 
-    # 0x0B: LDX #val
+    # 0x0B
     def _ldx(self):
-        if self.PC + 1 >= 256:
-            raise IndexError("ADD: fetch de operando fuera de memoria")
-        val = self.bus.read(self.PC + 1)
-        self.add_log(f"FETCH: 0B {val:02X} -> LDX #{val:03d}")
-        self.X = val
-        self.zero = (self.X == 0)
-        self.PC += 2
+        def do_ldx():
+            self.X = self.operand
+            self.zero = (self.X == 0)
+            self.add_log(f"LDX: {self.X:02X}")
+        self.micro_ops.append(lambda: fetch_operand(self))
+        self.micro_ops.append(do_ldx)
 
-    # 0x0C: INX
+    # 0x0C
     def _inx(self):
-        if self.PC + 1 >= 256:
-            raise IndexError("ADD: fetch de operando fuera de memoria")
-        self.add_log(f"FETCH: 0C -> INX")
-        old_x = self.X
-        self.X = (self.X + 1) % 256
-        self.zero = (self.X == 0)
-        self.add_log(f"  REG: X incrementado ({old_x:02X} -> {self.X:02X})")
-        self.PC += 1
+        def do_inx():
+            old_x = self.X
+            self.X = (self.X + 1) % 256
+            self.zero = (self.X == 0)
+            self.add_log(f"INX: {old_x:02X} -> {self.X:02X}")
+        self.micro_ops.append(do_inx)
 
-    # 0x0D: DEX
+    # 0x0D
     def _dex(self):
-        if self.PC + 1 >= 256:
-            raise IndexError("ADD: fetch de operando fuera de memoria")
-        self.add_log(f"FETCH: 0D -> DEX")
-        old_x = self.X
-        self.X = (self.X - 1) % 256
-        self.zero = (self.X == 0)
-        self.add_log(f"  REG: X decrementado ({old_x:02X} -> {self.X:02X})")
-        self.PC += 1
+        def do_dex():
+            old_x = self.X
+            self.X = (self.X - 1) % 256
+            self.zero = (self.X == 0)
+            self.add_log(f"DEX: {old_x:02X} -> {self.X:02X}")
+        self.micro_ops.append(do_dex)
 
     # 0xFF
     def _halt(self):
-        if self.PC + 1 >= 256:
-            raise IndexError("ADD: fetch de operando fuera de memoria")
-        self.add_log("HALT")
-        self.running = False
+        def do_halt():
+            self.running = False
+            self.add_log("HALT ejecutado")
+        self.micro_ops.append(do_halt)
 
 
     # --- CICLO DE EJECUCIÓN ---
