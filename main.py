@@ -43,6 +43,14 @@ def run_emulator(cpu):
         if cmd == "Q": break
         cpu.step()
     cpu.render()
+    
+    # Al terminar, ofrecemos la exportación
+    opcion = input("\n¿Desea exportar el log de esta ejecución? (S/N): ").upper()
+    if opcion == "S":
+        nombre_log = f"log_{time.strftime('%Y%m%d_%H%M%S')}.log"
+        cpu.export_log(nombre_log)
+        input("Presione ENTER para continuar...")
+        
     if not cpu.running: input("\nHALT alcanzado. ENTER para volver...")
 
 

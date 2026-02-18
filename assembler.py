@@ -31,80 +31,75 @@ ASM_TO_HEX = {
 SINGLE_BYTE_INSTR = ["INX", "DEX", "NOT", "HALT"]
 
 
-def assembler():
-    print("\n--- LOGICA-8 - ASSEMBLER ---")
-    print("Intruduce instrucciones, 'ETIQUETA:' definir saltos o 'FIN' para compilar.")
-    print("-" * 40)
-    
-    lineas_brutas = []
-    while True:
-        linea = input("> ").strip()
-        if linea.upper() == "FIN": break
-        if not linea: continue
-        lineas_brutas.append(linea)
-    
+def compile_asm(source_code, verbose=True):
+    """
+    Motor de compilación: Recibe un string o lista de líneas y devuelve el bytecode.
+    Si verbose=True, imprime la tabla de traducción en consola.
+    """
+    lineas_brutas = source_code.split('\n') if isinstance(source_code, str) else source_code
     labels = {}
     direccion_actual = 0
     instrucciones_limpias = []
 
-    # --- PASADA 1: Mapeo de Etiquetas y Validación ---
+    # --- PASADA 1: Mapeo de Etiquetas ---
     for linea in lineas_brutas:
-        # Limpiar espacios y separar por tokens
         tokens = linea.replace(':', ': ').split()
         if not tokens: continue
-        
         primer_token = tokens[0].upper()
         
         if primer_token.endswith(':'):
             label_name = primer_token[:-1]
             if label_name in labels:
-                print(f"ERROR: Etiqueta duplicada '{label_name}'")
-                return None
+                return None, f"ERROR: Etiqueta duplicada '{label_name}'"
             labels[label_name] = direccion_actual
-            # Si hay algo después de los ":" en la misma línea, es una instrucción
-            if len(tokens) > 1:
-                tokens = tokens[1:] 
-            else:
-                continue # Línea de solo etiqueta, no suma dirección
+            tokens = tokens[1:]
+            if not tokens: continue
         
-        # Calcular tamaño de la instrucción
         mnemonico = tokens[0].upper()
         if mnemonico in ASM_TO_HEX:
             instrucciones_limpias.append((direccion_actual, tokens))
             direccion_actual += 1 if mnemonico in SINGLE_BYTE_INSTR else 2
         else:
-            print(f"ERROR: Instrucción desconocida '{mnemonico}'")
-            return None
+            return None, f"ERROR: Instrucción desconocida '{mnemonico}'"
 
     # --- PASADA 2: Generación de Bytecode ---
     bytecode = []
-    print(f"\n{'DIR':<5} | {'ASM':<15} | {'HEX'}")
-    print("-" * 35)
+    if verbose: print(f"\n{'DIR':<5} | {'ASM':<15} | {'HEX'}\n" + "-"*35)
 
     for addr, tokens in instrucciones_limpias:
         mnemonico = tokens[0].upper()
         opcode = ASM_TO_HEX[mnemonico]
         
         if mnemonico in SINGLE_BYTE_INSTR:
-            print(f"${addr:02X} | {mnemonico:<15} | {opcode:02X}")
+            if verbose: print(f"${addr:02X} | {mnemonico:<15} | {opcode:02X}")
             bytecode.append(opcode)
         else:
-            if len(tokens) < 2:
-                print(f"ERROR: '{mnemonico}' requiere un argumento.")
-                return None
-            
+            if len(tokens) < 2: return None, f"ERROR: '{mnemonico}' requiere argumento"
             arg = tokens[1].upper()
-            # ¿Es una etiqueta o un número literal?
-            if arg in labels:
-                valor = labels[arg]
-            else:
-                valor = parse_value(arg)
+            valor = labels[arg] if arg in labels else parse_value(arg)
             
             if valor is not None and 0 <= valor <= 255:
-                print(f"${addr:02X} | {mnemonico} {arg:<11} | {opcode:02X} {valor:02X}")
+                if verbose: print(f"${addr:02X} | {mnemonico} {arg:<11} | {opcode:02X} {valor:02X}")
                 bytecode.extend([opcode, valor])
             else:
-                print(f"ERROR: Argumento o etiqueta inválida '{arg}'")
-                return None
+                return None, f"ERROR: Argumento o etiqueta inválida '{arg}'"
                 
+    return bytecode, None
+
+def assembler():
+    """Interfaz de usuario para el ensamblador interactivo."""
+    print("\n--- LOGICA-8 - ASSEMBLER ---")
+    print("Introduce instrucciones, 'ETIQUETA:' o 'FIN' para compilar.")
+    print("-" * 40)
+    
+    lineas = []
+    while True:
+        linea = input("> ").strip()
+        if linea.upper() == "FIN": break
+        if linea: lineas.append(linea)
+    
+    bytecode, error = compile_asm(lineas)
+    if error:
+        print(error)
+        return None
     return bytecode

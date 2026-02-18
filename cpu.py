@@ -3,12 +3,16 @@ from memory import Memory
 from bus import Bus
 from microops import *
 import os
+import time
 
 class CPU:
     def __init__(self):
         self.memory = Memory()
         self.bus = Bus()
         self.bus.attach_memory(self.memory)
+        
+        # Log
+        self.full_history = []
 
         # Registros
         self.A = 0x00
@@ -68,6 +72,21 @@ class CPU:
         self.log.append(msg)
         if len(self.log) > 15:
             self.log.pop(0)
+        timestamp = time.strftime("%H:%M:%S")
+        self.full_history.append(f"[{timestamp}] {msg}")
+        
+    def export_log(self, filename="execution.log"):
+        try:
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write(f"--- LOGICA-8 EXECUTION TRACE ---\n")
+                f.write(f"Project: LOGICA-8\n") #
+                f.write(f"Generated: {time.ctime()}\n")
+                f.write("-" * 40 + "\n\n")
+                for line in self.full_history:
+                    f.write(line + "\n")
+            print(f"\n[SISTEMA] Historial exportado con éxito a {filename}")
+        except Exception as e:
+            print(f"\n[ERROR] No se pudo exportar el log: {e}")
 
     # --- INSTRUCCIONES ---
 

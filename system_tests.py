@@ -66,6 +66,42 @@ def run_tests():
     while cpu.running: cpu.step()
     condicion_x = (cpu.A == 5 and cpu.X == 255 and cpu.zero is False)
     assert_test("REGISTRO X: Independencia de A y gestión de flags", condicion_x, f"A={cpu.A}, X={cpu.X}, Z={cpu.zero}")
+    
+    # --- TEST 8: Ensamblador y Etiquetas ---
+    from assembler import compile_asm
+    source = """
+    LDA 0x05
+    JMP FINAL
+    LDA 0x00
+    FINAL:
+    HALT
+    """
+    bytecode, error = compile_asm(source, verbose=False)
+    if bytecode:
+        cpu.load_program(bytecode)
+        while cpu.running: cpu.step()
+        # Si el JMP funcionó, A debe ser 5. Si no, sería 0.
+        assert_test("ENSAMBLADOR: Etiquetas y saltos dinámicos", cpu.A == 5)
+    else:
+        assert_test("ENSAMBLADOR: Error de compilación en test", False, error)
+
+    # --- TEST 9: Consistencia de Flags en Micro-operaciones ---
+    # Verificamos que el flag Zero se actualiza tras cada uOP de carga
+    cpu.load_program([0x01, 0x00, 0xFF]) # LDA 0
+    cpu.step() # Fetch
+    cpu.step() # uOP: BUS READ
+    cpu.step() # uOP: REG LOAD (Aquí debe activarse Z)
+    z_on = cpu.zero
+    
+    cpu.load_program([0x01, 0x05, 0xFF]) # LDA 5
+    cpu.step(); cpu.step(); cpu.step() # Ejecutamos hasta carga
+    z_off = not cpu.zero
+    assert_test("uOPs: Actualización dinámica de Flags (Z)", z_on and z_off)
+
+    # --- TEST 10: Integridad del Bus (Write/Read) ---
+    cpu.bus.write(0x10, 0xAA)
+    val = cpu.bus.read(0x10)
+    assert_test("BUS/MEMORIA: Verificación de escritura y lectura física", val == 0xAA)
 
     print(f"\nRESULTADO: {tests_passed}/{total_tests} tests superados.")
     input("\nPresiona ENTER para volver...")
